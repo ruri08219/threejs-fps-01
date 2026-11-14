@@ -456,6 +456,9 @@ function playerShoot() {
 }
 
 function step(dt) {
+  // The match does not tick until the player clicks play (shot mode drives
+  // the sim itself, so it is exempt). Before that the scene just renders.
+  if (!started && !shot) return;
   elapsed += dt;
   botCtx.time = elapsed;
   const phase = rounds.state.phase;
@@ -711,6 +714,7 @@ window.addEventListener('resize', () => {
 
 hud.onPlay(() => {
   if (shot) return;
+  started = true;
   if (rounds.state.matchOver) {
     startMatch();
     hud.hideOverlay();
