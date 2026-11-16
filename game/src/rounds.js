@@ -1,7 +1,7 @@
-// Round state machine: buy (15 s) -> live (100 s) -> planted (35 s fuse) ->
+// The round state machine: buy (15 s) -> live (100 s) -> planted (35 s fuse) ->
 // over (4 s banner) -> next round. First to 5 rounds wins the match.
-// Win conditions: elimination, bomb detonation, defuse, or time expiring
-// (defenders win on time if the bomb was never planted).
+// A round is won by elimination, by detonation, by defuse, or by the clock:
+// defenders take it on time if the spike was never planted.
 import { SITES } from './world.js';
 
 export const BUY_SECONDS = 15;
@@ -11,8 +11,11 @@ export const PLANT_SECONDS = 3;
 export const DEFUSE_SECONDS = 5;
 export const WIN_ROUNDS = 5;
 
+// The intermission shown after a round ends, before the next buy phase.
+const OVER_SECONDS = 4;
+
 export function createRounds() {
-  const state = {
+  const match = {
     round: 1,
     phase: 'buy', // buy | live | planted | over
     phaseTime: 0,
@@ -24,70 +27,74 @@ export function createRounds() {
     defuseProgress: 0,
   };
 
-  function startRound(number, random = Math.random) {
-    state.round = number;
-    state.phase = 'buy';
-    state.phaseTime = 0;
-    state.timer = BUY_SECONDS;
-    state.bomb.planted = false;
-    state.bomb.site = null;
-    state.bomb.targetSite = random() < 0.5 ? SITES.A : SITES.B;
-    state.bomb.targetSite.key = state.bomb.targetSite === SITES.A ? 'A' : 'B';
-    state.bomb.fuse = 0;
-    state.bomb.carrier = 'player';
-    state.defuseProgress = 0;
-    state.overReason = '';
+  function openRound(number, random = Math.random) {
+    match.round = number;
+    match.phase = 'buy';
+    match.phaseTime = 0;
+    match.timer = BUY_SECONDS;
+    match.bomb.planted = false;
+    match.bomb.site = null;
+    // The attack's target site is a coin flip each round; the key is stamped
+    // on the shared site object so the HUD and the bots read the same letter.
+    match.bomb.targetSite = random() < 0.5 ? SITES.A : SITES.B;
+    match.bomb.targetSite.key = match.bomb.targetSite === SITES.A ? 'A' : 'B';
+    match.bomb.fuse = 0;
+    match.bomb.carrier = 'player';
+    match.defuseProgress = 0;
+    match.overReason = '';
+  }
+
+  function closeRound(winner, reason) {
+    if (match.phase === 'over') return false;
+    match.phase = 'over';
+    match.phaseTime = 0;
+    match.timer = OVER_SECONDS;
+    match.score[winner] += 1;
+    match.overReason = reason;
+    if (match.score[winner] >= WIN_ROUNDS) match.matchOver = true;
+    return true;
   }
 
   return {
-    state,
-    startRound,
+    state: match,
+    startRound: openRound,
     reset() {
-      state.round = 1;
-      state.score.attack = 0;
-      state.score.defend = 0;
-      state.matchOver = false;
-      startRound(1);
+      match.round = 1;
+      match.score.attack = 0;
+      match.score.defend = 0;
+      match.matchOver = false;
+      openRound(1);
     },
     goLive() {
-      state.phase = 'live';
-      state.phaseTime = 0;
-      state.timer = ROUND_SECONDS;
+      match.phase = 'live';
+      match.phaseTime = 0;
+      match.timer = ROUND_SECONDS;
     },
     plant(siteKey) {
       const site = siteKey === 'A' ? SITES.A : SITES.B;
       site.key = siteKey;
-      state.bomb.planted = true;
-      state.bomb.site = site;
-      state.bomb.fuse = FUSE_SECONDS;
-      state.phase = 'planted';
-      state.phaseTime = 0;
-      state.timer = FUSE_SECONDS;
+      match.bomb.planted = true;
+      match.bomb.site = site;
+      match.bomb.fuse = FUSE_SECONDS;
+      match.phase = 'planted';
+      match.phaseTime = 0;
+      match.timer = FUSE_SECONDS;
     },
-    endRound(winner, reason) {
-      if (state.phase === 'over') return false;
-      state.phase = 'over';
-      state.phaseTime = 0;
-      state.timer = 4;
-      state.score[winner] += 1;
-      state.overReason = reason;
-      if (state.score[winner] >= WIN_ROUNDS) state.matchOver = true;
-      return true;
-    },
+    endRound: closeRound,
     step(dt) {
-      state.phaseTime += dt;
-      if (state.phase === 'buy') {
-        state.timer = Math.max(0, BUY_SECONDS - state.phaseTime);
-        if (state.timer === 0) this.goLive();
-      } else if (state.phase === 'live') {
-        state.timer = Math.max(0, ROUND_SECONDS - state.phaseTime);
-        if (state.timer === 0) this.endRound('defend', 'Time expired — the spike never went down.');
-      } else if (state.phase === 'planted') {
-        state.timer = Math.max(0, FUSE_SECONDS - state.phaseTime);
-        state.bomb.fuse = state.timer;
-        if (state.timer === 0) this.endRound('attack', 'Spike detonated — site lost.');
-      } else if (state.phase === 'over') {
-        state.timer = Math.max(0, 4 - state.phaseTime);
+      match.phaseTime += dt;
+      if (match.phase === 'buy') {
+        match.timer = Math.max(0, BUY_SECONDS - match.phaseTime);
+        if (match.timer === 0) this.goLive();
+      } else if (match.phase === 'live') {
+        match.timer = Math.max(0, ROUND_SECONDS - match.phaseTime);
+        if (match.timer === 0) closeRound('defend', 'Time expired — the spike never went down.');
+      } else if (match.phase === 'planted') {
+        match.timer = Math.max(0, FUSE_SECONDS - match.phaseTime);
+        match.bomb.fuse = match.timer;
+        if (match.timer === 0) closeRound('attack', 'Spike detonated — site lost.');
+      } else if (match.phase === 'over') {
+        match.timer = Math.max(0, OVER_SECONDS - match.phaseTime);
       }
     },
   };

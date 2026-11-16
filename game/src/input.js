@@ -1,68 +1,74 @@
-// Keyboard and mouse, and the pointer lock that turns the mouse into look.
-// Plain browser APIs only. Edge-triggered keys (buy, throw, switch) are queued
-// in `pressed` and read once by main.js; held keys live in `keys`.
+// Keyboard and mouse, plus the pointer lock that turns the mouse into look.
+// Plain browser APIs only. Edge-triggered keys (buy, throw, switch weapon)
+// are queued in `tapped` and read once per frame by main.js; held keys live in
+// `held` for the whole time they are pressed.
 export function createInput(canvas, onLockChange) {
-  const keys = new Set();
-  const pressed = new Set();
-  const state = { keys, pressed, locked: false, firing: false, aiming: false, lookX: 0, lookY: 0 };
+  const held = new Set();
+  const tapped = new Set();
+  const pad = { keys: held, pressed: tapped, locked: false, firing: false, aiming: false, lookX: 0, lookY: 0 };
 
-  function setKey(event, down) {
+  function trackKey(event, down) {
     if (down) {
-      if (!keys.has(event.code)) pressed.add(event.code);
-      keys.add(event.code);
+      if (!held.has(event.code)) tapped.add(event.code);
+      held.add(event.code);
     } else {
-      keys.delete(event.code);
+      held.delete(event.code);
     }
+    // Space scrolls the page by default; the game owns it while playing.
     if (event.code === 'Space') event.preventDefault();
   }
 
-  window.addEventListener('keydown', (event) => setKey(event, true));
-  window.addEventListener('keyup', (event) => setKey(event, false));
+  window.addEventListener('keydown', (event) => trackKey(event, true));
+  window.addEventListener('keyup', (event) => trackKey(event, false));
   window.addEventListener('blur', () => {
-    keys.clear();
-    pressed.clear();
+    held.clear();
+    tapped.clear();
   });
   window.addEventListener('mousemove', (event) => {
-    if (!state.locked) return;
-    state.lookX += event.movementX;
-    state.lookY += event.movementY;
+    if (!pad.locked) return;
+    pad.lookX += event.movementX;
+    pad.lookY += event.movementY;
   });
   window.addEventListener('mousedown', (event) => {
-    if (!state.locked) return;
-    if (event.button === 0) state.firing = true;
-    if (event.button === 2) state.aiming = true;
+    if (!pad.locked) return;
+    if (event.button === 0) pad.firing = true;
+    if (event.button === 2) pad.aiming = true;
   });
   window.addEventListener('mouseup', (event) => {
-    if (event.button === 0) state.firing = false;
-    if (event.button === 2) state.aiming = false;
+    if (event.button === 0) pad.firing = false;
+    if (event.button === 2) pad.aiming = false;
   });
   window.addEventListener('contextmenu', (event) => event.preventDefault());
   document.addEventListener('pointerlockchange', () => {
-    state.locked = document.pointerLockElement === canvas;
-    if (!state.locked) {
-      keys.clear();
-      state.firing = false;
-      state.aiming = false;
+    pad.locked = document.pointerLockElement === canvas;
+    if (!pad.locked) {
+      held.clear();
+      pad.firing = false;
+      pad.aiming = false;
     }
-    onLockChange(state.locked);
+    onLockChange(pad.locked);
   });
 
   return {
-    state,
+    state: pad,
     requestLock() {
-      canvas.requestPointerLock();
+      // requestPointerLock returns a promise in newer Chrome; a call without
+      // a user gesture rejects it, so swallow that — the game keeps running
+      // unlocked and re-locks on the next real click.
+      const pending = canvas.requestPointerLock();
+      if (pending && pending.catch) pending.catch(() => {});
     },
     takeLook() {
-      const x = state.lookX;
-      const y = state.lookY;
-      state.lookX = 0;
-      state.lookY = 0;
-      return { x, y };
+      const dx = pad.lookX;
+      const dy = pad.lookY;
+      pad.lookX = 0;
+      pad.lookY = 0;
+      return { x: dx, y: dy };
     },
     takePressed() {
-      const out = [...pressed];
-      pressed.clear();
-      return out;
+      const queue = [...tapped];
+      tapped.clear();
+      return queue;
     },
   };
 }

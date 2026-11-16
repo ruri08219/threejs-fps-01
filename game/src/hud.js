@@ -1,8 +1,9 @@
 // The DOM HUD: crosshair, hit marker, health, ammo, money, timer, score, team
 // pips, kill feed, banners, buy menu, plant/defuse progress and overlays.
 // It never touches the simulation; main.js pushes numbers in and reads the
-// play and buy callbacks out.
-const COPY = {
+// play and buy callbacks back out. Text writes are cached so the DOM is only
+// touched when a value actually changes.
+const OVERLAY_TEXT = {
   start: {
     title: 'SANDLINE',
     copy: 'A dusk desert compound. You are AURUM, the attackers: plant the spike at A or B, or eliminate VANTA. First to 5 rounds takes the match.',
@@ -16,54 +17,55 @@ const COPY = {
 };
 
 export function createHud() {
-  const $ = (id) => document.getElementById(id);
-  const overlay = $('overlay');
-  const title = $('overlay-title');
-  const copy = $('overlay-copy');
-  const play = $('play');
-  const ammoMag = $('ammo-mag');
-  const ammoReserve = $('ammo-reserve');
-  const weaponName = $('weapon-name');
-  const healthFill = $('health-fill');
-  const healthValue = $('health-value');
-  const moneyValue = $('money-value');
-  const timerValue = $('timer-value');
-  const timerLabel = $('timer-label');
-  const scoreA = $('score-a');
-  const scoreB = $('score-b');
-  const roundValue = $('round-value');
-  const pipsA = $('pips-a');
-  const pipsB = $('pips-b');
-  const killfeed = $('killfeed');
-  const banner = $('banner');
-  const bannerTitle = $('banner-title');
-  const bannerSub = $('banner-sub');
-  const buyMenu = $('buy-menu');
-  const buyMoney = $('buy-money');
-  const progress = $('progress');
-  const progressFill = $('progress-fill');
-  const progressLabel = $('progress-label');
-  const bombStatus = $('bomb-status');
-  const hitmarker = $('hitmarker');
-  const crosshair = $('crosshair');
-  const vignette = $('vignette');
-  const flashEl = $('flash');
-  const grenadeLine = $('grenade-line');
-  let hitTimer = 0;
-  let bannerTimer = 0;
-  let last = {};
+  const grab = (id) => document.getElementById(id);
+  const overlayPane = grab('overlay');
+  const overlayHeading = grab('overlay-title');
+  const overlayBody = grab('overlay-copy');
+  const playBtn = grab('play');
+  const magEl = grab('ammo-mag');
+  const reserveEl = grab('ammo-reserve');
+  const weaponEl = grab('weapon-name');
+  const healthBar = grab('health-fill');
+  const healthNum = grab('health-value');
+  const moneyNum = grab('money-value');
+  const timerNum = grab('timer-value');
+  const timerTag = grab('timer-label');
+  const scoreNumA = grab('score-a');
+  const scoreNumB = grab('score-b');
+  const roundTag = grab('round-value');
+  const pipsElA = grab('pips-a');
+  const pipsElB = grab('pips-b');
+  const feedEl = grab('killfeed');
+  const bannerPane = grab('banner');
+  const bannerHeading = grab('banner-title');
+  const bannerBody = grab('banner-sub');
+  const shopPane = grab('buy-menu');
+  const shopMoney = grab('buy-money');
+  const progressPane = grab('progress');
+  const progressBar = grab('progress-fill');
+  const progressTag = grab('progress-label');
+  const bombTag = grab('bomb-status');
+  const markerEl = grab('hitmarker');
+  const crossEl = grab('crosshair');
+  const hurtEl = grab('vignette');
+  const flashPane = grab('flash');
+  const nadeTag = grab('grenade-line');
+  let hitClock = 0;
+  let bannerClock = 0;
+  const cache = {};
 
-  function setText(el, value, key) {
-    if (last[key] !== value) {
-      last[key] = value;
+  function paintText(el, value, key) {
+    if (cache[key] !== value) {
+      cache[key] = value;
       el.textContent = value;
     }
   }
-  function pips(el, alive, total, team) {
+
+  function renderPips(el, alive, total, team) {
     const key = `pips-${team}`;
     const value = `${alive}/${total}`;
-    if (last[key] === value) return;
-    last[key] = value;
+    if (cache[key] === value) return;
+    cache[key] = value;
     el.innerHTML = '';
     for (let i = 0; i < total; i += 1) {
       const dot = document.createElement('i');
@@ -72,126 +74,132 @@ export function createHud() {
     }
   }
 
+  function phaseName(phase) {
+    if (phase === 'buy') return 'BUY PHASE';
+    if (phase === 'planted') return 'SPIKE LIVE';
+    if (phase === 'over') return 'ROUND OVER';
+    return 'ROUND';
+  }
+
   return {
     setHealth(hp) {
-      setText(healthValue, String(Math.max(0, Math.ceil(hp))), 'hp');
+      paintText(healthNum, String(Math.max(0, Math.ceil(hp))), 'hp');
       const pct = Math.max(0, Math.min(100, hp));
-      if (last.hppct !== pct) {
-        last.hppct = pct;
-        healthFill.style.width = `${pct}%`;
-        healthFill.classList.toggle('low', pct <= 30);
+      if (cache.hppct !== pct) {
+        cache.hppct = pct;
+        healthBar.style.width = `${pct}%`;
+        healthBar.classList.toggle('low', pct <= 30);
       }
     },
     setAmmo(mag, reserve, name) {
-      setText(ammoMag, String(mag), 'mag');
-      setText(ammoReserve, `/ ${reserve}`, 'res');
-      setText(weaponName, name, 'wname');
-      $('ammo').classList.toggle('empty', mag === 0);
+      paintText(magEl, String(mag), 'mag');
+      paintText(reserveEl, `/ ${reserve}`, 'res');
+      paintText(weaponEl, name, 'wname');
+      grab('ammo').classList.toggle('empty', mag === 0);
     },
     setMoney(n) {
-      setText(moneyValue, `$${n}`, 'money');
-      setText(buyMoney, `$${n}`, 'buymoney');
+      paintText(moneyNum, `$${n}`, 'money');
+      paintText(shopMoney, `$${n}`, 'buymoney');
     },
     setTimer(seconds, phase) {
       const s = Math.ceil(seconds);
-      setText(timerValue, `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`, 'timer');
-      const label = phase === 'buy' ? 'BUY PHASE' : phase === 'planted' ? 'SPIKE LIVE' : phase === 'over' ? 'ROUND OVER' : 'ROUND';
-      setText(timerLabel, label, 'tlabel');
-      $('timer').classList.toggle('danger', phase === 'planted' || (phase === 'live' && seconds <= 15));
+      paintText(timerNum, `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`, 'timer');
+      paintText(timerTag, phaseName(phase), 'tlabel');
+      grab('timer').classList.toggle('danger', phase === 'planted' || (phase === 'live' && seconds <= 15));
     },
     setScore(a, b, round) {
-      setText(scoreA, String(a), 'sa');
-      setText(scoreB, String(b), 'sb');
-      setText(roundValue, `ROUND ${round}`, 'round');
+      paintText(scoreNumA, String(a), 'sa');
+      paintText(scoreNumB, String(b), 'sb');
+      paintText(roundTag, `ROUND ${round}`, 'round');
     },
     setAlive(aAlive, aTotal, bAlive, bTotal) {
-      pips(pipsA, aAlive, aTotal, 'aurum');
-      pips(pipsB, bAlive, bTotal, 'vanta');
+      renderPips(pipsElA, aAlive, aTotal, 'aurum');
+      renderPips(pipsElB, bAlive, bTotal, 'vanta');
     },
     setGrenades(frag, flash, selected) {
-      setText(grenadeLine, `FRAG ${frag} · DAZZLER ${flash} — [G] throw, [Q] ${selected === 'frag' ? 'FRAG' : 'DAZZLER'} selected`, 'nades');
+      paintText(nadeTag, `FRAG ${frag} · DAZZLER ${flash} — [G] throw, [Q] ${selected === 'frag' ? 'FRAG' : 'DAZZLER'} selected`, 'nades');
     },
     setBombStatus(text) {
-      setText(bombStatus, text, 'bomb');
+      paintText(bombTag, text, 'bomb');
     },
     setCrosshair(gapPx) {
       const gap = Math.round(gapPx);
-      if (last.gap !== gap) {
-        last.gap = gap;
-        crosshair.style.setProperty('--gap', `${gap}px`);
+      if (cache.gap !== gap) {
+        cache.gap = gap;
+        crossEl.style.setProperty('--gap', `${gap}px`);
       }
     },
     hitMarker(killed, head) {
-      hitmarker.classList.add('on');
-      hitmarker.classList.toggle('head', !!head);
-      hitmarker.style.transform = killed
+      markerEl.classList.add('on');
+      markerEl.classList.toggle('head', !!head);
+      markerEl.style.transform = killed
         ? 'translate(-50%, -50%) rotate(45deg) scale(1.3)'
         : 'translate(-50%, -50%) rotate(45deg)';
-      clearTimeout(hitTimer);
-      hitTimer = setTimeout(() => hitmarker.classList.remove('on'), killed ? 220 : 90);
+      clearTimeout(hitClock);
+      hitClock = setTimeout(() => markerEl.classList.remove('on'), killed ? 220 : 90);
     },
     damageFlash() {
-      vignette.classList.add('hit');
-      setTimeout(() => vignette.classList.remove('hit'), 180);
+      hurtEl.classList.add('hit');
+      setTimeout(() => hurtEl.classList.remove('hit'), 180);
     },
     flashWhite(strength) {
-      flashEl.style.opacity = String(Math.max(0, Math.min(1, strength)));
+      flashPane.style.opacity = String(Math.max(0, Math.min(1, strength)));
     },
     killFeed(text, team) {
       const line = document.createElement('div');
       line.className = `feed-line ${team}`;
       line.textContent = text;
-      killfeed.prepend(line);
-      while (killfeed.children.length > 5) killfeed.removeChild(killfeed.lastChild);
+      feedEl.prepend(line);
+      while (feedEl.children.length > 5) feedEl.removeChild(feedEl.lastChild);
       setTimeout(() => line.remove(), 5200);
     },
     banner(titleText, subText, team) {
-      bannerTitle.textContent = titleText;
-      bannerSub.textContent = subText;
-      banner.className = `show ${team || ''}`;
-      clearTimeout(bannerTimer);
-      bannerTimer = setTimeout(() => banner.classList.remove('show'), 3600);
+      bannerHeading.textContent = titleText;
+      bannerBody.textContent = subText;
+      bannerPane.className = `show ${team || ''}`;
+      clearTimeout(bannerClock);
+      bannerClock = setTimeout(() => bannerPane.classList.remove('show'), 3600);
     },
     hideBanner() {
-      banner.classList.remove('show');
+      bannerPane.classList.remove('show');
     },
     showProgress(label, fraction) {
-      progress.hidden = false;
-      progressLabel.textContent = label;
-      progressFill.style.width = `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%`;
+      progressPane.hidden = false;
+      progressTag.textContent = label;
+      progressBar.style.width = `${Math.round(Math.max(0, Math.min(1, fraction)) * 100)}%`;
     },
     hideProgress() {
-      progress.hidden = true;
+      progressPane.hidden = true;
     },
     showBuy(open) {
-      buyMenu.hidden = !open;
+      shopPane.hidden = !open;
     },
     buyOpen() {
-      return !buyMenu.hidden;
+      return !shopPane.hidden;
     },
     onBuy(handler) {
-      buyMenu.querySelectorAll('[data-buy]').forEach((button) => {
+      shopPane.querySelectorAll('[data-buy]').forEach((button) => {
         button.addEventListener('click', () => handler(button.dataset.buy));
       });
     },
     refreshBuy(afford) {
-      buyMenu.querySelectorAll('[data-buy]').forEach((button) => {
+      shopPane.querySelectorAll('[data-buy]').forEach((button) => {
         button.disabled = !afford(button.dataset.buy);
       });
     },
     showOverlay(mode, extra) {
-      const text = COPY[mode];
-      title.textContent = text.title;
-      copy.textContent = extra || text.copy;
-      play.textContent = text.action;
-      overlay.hidden = false;
-      play.focus();
+      const text = OVERLAY_TEXT[mode];
+      overlayHeading.textContent = text.title;
+      overlayBody.textContent = extra || text.copy;
+      playBtn.textContent = text.action;
+      overlayPane.hidden = false;
+      playBtn.focus();
     },
     hideOverlay() {
-      overlay.hidden = true;
+      overlayPane.hidden = true;
     },
     onPlay(handler) {
-      play.addEventListener('click', handler);
+      playBtn.addEventListener('click', handler);
     },
   };
 }
