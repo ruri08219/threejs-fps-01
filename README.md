@@ -1,7 +1,11 @@
+[![make.fun · threejs-fps-02](https://make.fun/badge/threejs-fps-02.svg)](https://make.fun/bounty/threejs-fps-02?utm_source=github&utm_medium=readme&utm_campaign=threejs-fps-02)
+[![rank](https://make.fun/badge/threejs-fps-02/ruri08219/threejs-fps-01/rank.svg)](https://make.fun/bounty/threejs-fps-02/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=threejs-fps-02)
+[![reward](https://make.fun/badge/threejs-fps-02/ruri08219/threejs-fps-01/reward.svg)](https://make.fun/bounty/threejs-fps-02?utm_source=github&utm_medium=readme&utm_campaign=threejs-fps-02)
+
 # SANDLINE — a three.js tactical FPS
 
 A round-based tactical first-person shooter in the style Counter-Strike made
-famous, built for make.fun's `threejs-fps-01` bounty. It runs in a desktop
+famous, built for make.fun's `threejs-fps-02` bounty — [Make the best three.js tactical FPS](https://make.fun/bounty/threejs-fps-02), $1,000 in USDC. It runs in a desktop
 browser on three.js 0.187.0, from static files with no build step and no
 network request. Single-player against bots.
 
