@@ -3,7 +3,8 @@
 // tells friend from foe. The stylesheet in index.html mirrors these same names
 // as CSS custom properties, and the world builder reads them for materials.
 const SWATCHES = [
-  ['canvas', '#171310'], // dusk sky, fog wash
+  ['canvas', '#241b13'], // dusk sky, fog wash — lifted from near-black so the
+  // far walls and lanes still read at a glance instead of fading to black
   ['surface', '#2a2118'], // walls, ground shadow
   ['hairline', '#4a3a26'], // crates, barriers
   ['ink', '#f2e8d5'], // sand-lit faces, HUD text

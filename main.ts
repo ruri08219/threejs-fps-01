@@ -1,4 +1,4 @@
-// SANDLINE — a threejs-fps-01 entry (Node 22, standard library only): a
+// SANDLINE — a threejs-fps-02 entry (Node 22, standard library only): a
 // round-based tactical FPS on a dusk desert compound. The game itself is this
 // directory's game/ folder — plain static files the browser loads as ES modules
 // with three.js from an import map — and this program hands it in: it copies
@@ -17,6 +17,13 @@ import { buildDossier } from './vendor/makefun-threejs.ts';
 
 const repoRoot = fileURLToPath(new URL('.', import.meta.url));
 const outputDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+
+// Fail fast, with a readable message, if the game folder is incomplete:
+// a dossier built from a half-copied game would only fail later, in the
+// scorer, where the reason is harder to see.
+if (!existsSync(join(repoRoot, 'game', 'index.html'))) {
+  throw new Error('SANDLINE hand-in refused: game/index.html is missing');
+}
 
 function copyTree(source, target) {
   cpSync(join(repoRoot, source), join(outputDir, target), { recursive: true });

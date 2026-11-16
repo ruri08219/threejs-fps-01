@@ -4,6 +4,18 @@
 // defenders; first to 5 rounds takes the match. ?shot=start|play|bomb|end with
 // &seed=N sets up a deterministic frame for a capture, renders it twice, then
 // freezes it and sets window.__shotReady.
+//
+// Where the game lives, one module per job: world.js builds the 40x36 m dusk
+// compound (three lanes, sites A/B, bot routes, lighting); player.js moves
+// the hero with acceleration, crouch and map collision; weapons.js owns the
+// five guns, their view models, spread that grows with movement, recoil and
+// headshot multipliers; bots.js drives the seven bots (routes, holds, sight
+// and hearing, plant/defuse); rounds.js owns phases, timers and scoring;
+// economy.js owns money and the buy menu; grenades.js throws frag and flash;
+// effects.js pools tracers, sparks and dust; audio.js synthesises every
+// sound; hud.js is the DOM (health, ammo, timer, score, kill feed, shop).
+// The sim ticks at a fixed 60 Hz in tick() and never allocates in its hot
+// loops; rendering only reads state, it never writes it.
 import * as THREE from 'three';
 import { PALETTE } from './palette.js';
 import { createWorld, SITES, SPAWNS } from './world.js';
@@ -51,7 +63,7 @@ document.getElementById('game').appendChild(gl.domElement);
 
 const stage = new THREE.Scene();
 stage.background = new THREE.Color(PALETTE.canvas);
-stage.fog = new THREE.Fog(new THREE.Color(PALETTE.canvas), 26, 70);
+stage.fog = new THREE.Fog(new THREE.Color(PALETTE.canvas), 30, 85);
 const cam = new THREE.PerspectiveCamera(74, window.innerWidth / window.innerHeight, 0.05, 160);
 stage.add(cam);
 
@@ -513,7 +525,7 @@ function tick(dt) {
       }
     }
   }
-  arsenal.step(dt);
+  arsenal.step(dt, hero.groundSpeed());
   session.throwCooldown = Math.max(0, session.throwCooldown - dt);
   if (session.flashBlind > 0) {
     session.flashBlind = Math.max(0, session.flashBlind - dt / 2.2);

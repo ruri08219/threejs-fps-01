@@ -20,11 +20,16 @@ export const GRENADES = {
 };
 
 // One gun's first-person model, built from boxes: a different silhouette per
-// weapon so the player can tell at a glance what is in their hands.
+// weapon so the player can tell at a glance what is in their hands. Every
+// model carries one thin amber stripe — the gun has to read against dark
+// walls and sand alike, and the stripe is what the eye catches first. The
+// rig sits a touch higher and further in than the first pass, which had the
+// grip half out of the bottom of the frame.
 function makeGunModel(spec) {
   const gripMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.hairline), roughness: 0.7, metalness: 0.2 });
   const bodyMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.ink), roughness: 0.5, metalness: 0.35 });
   const darkMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.surface), roughness: 0.6, metalness: 0.3 });
+  const stripeMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.accent), roughness: 0.45, metalness: 0.25, emissive: new THREE.Color(PALETTE.accent), emissiveIntensity: 0.7 });
   const assembly = new THREE.Group();
   function addBit(w, h, d, x, y, z, mat) {
     const bit = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -35,27 +40,36 @@ function makeGunModel(spec) {
   if (spec.id === 'p9') {
     addBit(0.05, 0.09, 0.26, 0, 0, -0.1, bodyMat);
     addBit(0.045, 0.12, 0.07, 0, -0.09, 0.06, gripMat);
+    addBit(0.052, 0.012, 0.2, 0, 0.048, -0.1, stripeMat);
   } else if (spec.id === 'raptor') {
     addBit(0.07, 0.09, 0.34, 0, 0, -0.12, bodyMat);
     addBit(0.04, 0.04, 0.3, 0, 0.02, -0.32, darkMat);
     addBit(0.05, 0.14, 0.06, 0, -0.1, -0.02, gripMat);
     addBit(0.06, 0.05, 0.12, 0, -0.06, 0.14, gripMat);
+    addBit(0.072, 0.012, 0.26, 0, 0.048, -0.12, stripeMat);
   } else if (spec.id === 'breacher') {
     addBit(0.09, 0.11, 0.5, 0, 0, -0.12, darkMat);
     addBit(0.05, 0.05, 0.52, 0, 0.045, -0.14, bodyMat);
     addBit(0.07, 0.09, 0.2, 0, -0.03, 0.26, gripMat);
+    addBit(0.092, 0.012, 0.4, 0, 0.058, -0.12, stripeMat);
   } else if (spec.id === 'longbow') {
     addBit(0.07, 0.09, 0.62, 0, 0, -0.18, bodyMat);
     addBit(0.05, 0.05, 0.5, 0, 0.03, -0.3, darkMat);
     addBit(0.06, 0.06, 0.16, 0, 0.09, -0.1, darkMat); // scope
     addBit(0.06, 0.08, 0.2, 0, -0.03, 0.28, gripMat);
+    addBit(0.072, 0.012, 0.5, 0, 0.048, -0.18, stripeMat);
   } else {
     addBit(0.09, 0.1, 0.42, 0, 0, -0.12, bodyMat);
     addBit(0.045, 0.045, 0.4, 0, 0.025, -0.38, gripMat);
     addBit(0.075, 0.08, 0.22, 0, -0.02, 0.3, gripMat);
     addBit(0.05, 0.04, 0.14, 0, 0.07, -0.05, darkMat); // sight
+    addBit(0.092, 0.012, 0.32, 0, 0.053, -0.12, stripeMat);
   }
-  assembly.position.set(0.24, -0.2, -0.42);
+  assembly.position.set(0.21, -0.14, -0.42);
+  // The rig is scaled up half again: at life size the pistol read as a thin
+  // bar against the sand, easy to miss entirely. Bigger, higher and with a
+  // glowing stripe, it reads as a gun at a glance.
+  assembly.scale.set(1.5, 1.5, 1.5);
   return assembly;
 }
 
@@ -66,11 +80,11 @@ export function createWeapons(camera) {
     new THREE.PlaneGeometry(0.24, 0.24), // the glowing muzzle quad
     new THREE.MeshBasicMaterial({ color: new THREE.Color(PALETTE.accent), side: THREE.DoubleSide, transparent: true, opacity: 0.9, depthWrite: false }),
   );
-  burstQuad.position.set(0.24, -0.18, -0.95);
+  burstQuad.position.set(0.21, -0.12, -0.95);
   burstQuad.visible = false;
   camera.add(burstQuad);
   const burstLight = new THREE.PointLight(new THREE.Color(PALETTE.accent), 0, 5);
-  burstLight.position.set(0.24, -0.16, -0.6);
+  burstLight.position.set(0.21, -0.10, -0.6);
   camera.add(burstLight);
 
   const rigs = {};
@@ -94,21 +108,28 @@ export function createWeapons(camera) {
   const stock = {};
   for (const spec of Object.values(WEAPONS)) stock[spec.id] = { mag: spec.mag, reserve: spec.reserve };
   rigs.p9.visible = true;
+  let bobPhase = 0;
 
   function selected() {
     const held = WEAPONS[state.id];
     return held;
   }
 
-  function step(frame) {
+  function step(frame, speed) {
     state.cooldown = Math.max(0, state.cooldown - frame);
     state.flash = Math.max(0, state.flash - frame);
     state.kick += (0 - state.kick) * Math.min(1, frame * 14);
     const rig = rigs[state.id];
+    // Walk bob: the gun sways with the player's stride, stronger the faster
+    // they move, and settles the moment they stop — the same movement that
+    // the spread punishes is visible in the hands.
+    const pace = Math.min(1, (speed || 0) / 5.2);
+    bobPhase += frame * (speed || 0) * 1.7;
+    const bob = Math.sin(bobPhase) * 0.008 * pace;
     rig.position.z = -0.42 + state.kick;
     rig.rotation.x = state.kick * 2.2;
-    rig.position.y = -0.2 + (state.zoomed ? 0.055 : 0);
-    rig.position.x = 0.24 + (state.zoomed ? -0.24 : 0);
+    rig.position.y = -0.14 + (state.zoomed ? 0.055 : 0) + bob;
+    rig.position.x = 0.21 + (state.zoomed ? -0.21 : 0) + Math.cos(bobPhase * 0.5) * 0.004 * pace;
     burstQuad.visible = state.flash > 0;
     burstQuad.rotation.z = state.flash * 30;
     burstLight.intensity = state.flash > 0 ? 18 : 0;
@@ -180,7 +201,7 @@ export function createWeapons(camera) {
       state.kick = 0;
     },
     muzzleWorld(out) {
-      out.set(0.24, -0.16, -0.95);
+      out.set(0.21, -0.10, -0.95);
       return camera.localToWorld(out);
     },
   };

@@ -163,9 +163,13 @@ export function createWorld(scene) {
 
   // Light: a low amber sun in the west, a cool dusk fill, and a warm glow over
   // each bomb site so the sites read at a glance from anywhere on the map.
-  const dome = new THREE.HemisphereLight(new THREE.Color('#8a6a4a'), new THREE.Color(PALETTE.canvas), 1.35);
+  // The levels are deliberately generous: the first pass read too dark on
+  // shaded faces and in the lanes, so the hemisphere and the fill were raised
+  // until the ground, the crates and the far walls all stay readable while
+  // the dusk mood (warm sun, cool fill) is kept.
+  const dome = new THREE.HemisphereLight(new THREE.Color('#b08d63'), new THREE.Color(PALETTE.canvas), 2.1);
   scene.add(dome);
-  const sunLamp = new THREE.DirectionalLight(new THREE.Color('#ffb45e'), 2.8);
+  const sunLamp = new THREE.DirectionalLight(new THREE.Color('#ffb45e'), 3.6);
   sunLamp.position.set(-24, 10, 6);
   sunLamp.target.position.set(4, 0, -4);
   sunLamp.castShadow = true;
@@ -177,11 +181,11 @@ export function createWorld(scene) {
   sunLamp.shadow.camera.far = 70;
   sunLamp.shadow.bias = -0.0006;
   scene.add(sunLamp, sunLamp.target);
-  const fillLamp = new THREE.DirectionalLight(new THREE.Color('#5a6a8a'), 0.75);
+  const fillLamp = new THREE.DirectionalLight(new THREE.Color('#5a6a8a'), 1.25);
   fillLamp.position.set(10, 12, 14);
   scene.add(fillLamp);
   for (const spot of [SITES.A, SITES.B]) {
-    const glow = new THREE.PointLight(new THREE.Color(PALETTE.ember), 14, 14);
+    const glow = new THREE.PointLight(new THREE.Color(PALETTE.ember), 22, 16);
     glow.position.set(spot.x, 4.5, spot.z);
     scene.add(glow);
   }

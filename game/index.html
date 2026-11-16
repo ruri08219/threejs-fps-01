@@ -1,6 +1,21 @@
 <!doctype html>
 <html lang="en">
 <head>
+<!--
+  SANDLINE — a round-based tactical FPS on a dusk desert compound (three.js
+  0.187.0, static files, no build step, no network). What this game is, in
+  one place: first-person mouse look + WASD movement with acceleration and
+  crouch, five guns that fire, reload and run dry (P9, VK-47, Raptor-9,
+  Breacher-12, Longbow with a scope), headshots worth 4x, recoil and spread
+  that grow when you fire on the move; 4v4 rounds (you + 3 AURUM bots vs 4
+  VANTA bots) won by planting the spike at A or B, defusing it, or wiping
+  the other team, first to 5; money each round spent in a buy menu, plus
+  frag and flash (dazzler) grenades; bots that follow routes, hold sites,
+  hear shots and react to the spike; a HUD with health, ammo, timer, score
+  and alive pips, a kill feed and round banners. The sim ticks at a fixed
+  60 Hz in game/src/main.js and never allocates in its hot loops; one
+  module owns each job (see the header comment in game/src/main.js).
+-->
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SANDLINE — a three.js tactical FPS</title>
@@ -13,7 +28,7 @@
     --font-readout: ui-monospace, 'SF Mono', Menlo, monospace;
     --radius-panel: 4px;
     --radius-control: 8px;
-    --canvas: #171310;
+    --canvas: #241b13;
     --surface: #2a2118;
     --hairline: #4a3a26;
     --ink: #f2e8d5;
@@ -226,6 +241,8 @@
     font-size: 14px;
   }
   #health-value {
+    font-size: 34px;
+    line-height: 1;
     color: var(--ink);
   }
   #money-value {
